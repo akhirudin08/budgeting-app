@@ -9,7 +9,7 @@ interface FinancialItem {
   id: string;
   Title: string;
   Amount: number;
-  Tipe: 'Pemasukan' | 'Pengeluaran';
+  Tipe: 'Income' | 'Expense';
   Category: string;
   Date: string;
 }
@@ -27,13 +27,13 @@ export const App: React.FC = () => {
     }).format(angka);
   };
 
-  // Kalkulasi Total Pemasukan, Pengeluaran, dan Saldo
+  // Kalkulasi Total Pemasukan (Income), Pengeluaran (Expense), dan Saldo
   const totalPemasukan = items
-    .filter(i => i.Tipe === 'Pemasukan')
+    .filter(i => i.Tipe === 'Income')
     .reduce((acc, i) => acc + (Number(i.Amount) || 0), 0);
 
   const totalPengeluaran = items
-    .filter(i => i.Tipe === 'Pengeluaran')
+    .filter(i => i.Tipe === 'Expense')
     .reduce((acc, i) => acc + (Number(i.Amount) || 0), 0);
 
   const saldoSisa = totalPemasukan - totalPengeluaran;
@@ -80,7 +80,7 @@ export const App: React.FC = () => {
           <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <h3>Riwayat Keuangan</h3>
             {items.length === 0 ? (
-              <p style={{ color: '#888' }}>Belum ada data transaksi. Tambahkan data awal dari Microsoft Lists kamu!</p>
+              <p style={{ color: '#888' }}>Belum ada data transaksi tersinkron.</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px' }}>
                 <thead>
@@ -99,8 +99,8 @@ export const App: React.FC = () => {
                       <td style={{ padding: '10px' }}>{item.Title}</td>
                       <td style={{ padding: '10px' }}>{item.Category}</td>
                       <td style={{ padding: '10px' }}>{item.Tipe}</td>
-                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', color: item.Tipe === 'Pemasukan' ? '#2e7d32' : '#c62828' }}>
-                        {item.Tipe === 'Pemasukan' ? '+' : '-'} {formatRupiah(item.Amount)}
+                      <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold', color: item.Tipe === 'Income' ? '#2e7d32' : '#c62828' }}>
+                        {item.Tipe === 'Income' ? '+' : '-'} {formatRupiah(item.Amount)}
                       </td>
                     </tr>
                   ))}
