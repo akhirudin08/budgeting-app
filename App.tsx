@@ -1,10 +1,18 @@
 import React, { useState } from 'react';
+import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser';
+import { Client } from '@microsoft/microsoft-graph-client';
 
-// Konfigurasi dari Azure Portal & Microsoft Lists Kamu
-const CLIENT_ID = "3ffce125-2890-4390-813c-b6c4b3688fca";
-const LIST_ID = "bf3625cd-a331-41cd-8594-d10c93e4d684";
+// Konfigurasi MSAL dari Azure Portal
+const msalConfig = {
+  auth: {
+    clientId: "3ffce125-2890-4390-813c-b6c4b3688fca",
+    authority: "https://login.microsoftonline.com/common",
+    redirectUri: "https://budgeting-app-sand.vercel.app"
+  }
+};
 
-// Interface tipe data sesuai kolom di Microsoft Lists kamu
+const pca = new PublicClientApplication(msalConfig);
+
 interface FinancialItem {
   id: string;
   Title: string;
@@ -17,8 +25,52 @@ interface FinancialItem {
 export const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [items, setItems] = useState<FinancialItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  // Format Angka ke Rupiah
+  const LIST_ID = "bf3625cd-a331-41cd-8594-d10c93e4d684";
+
+  const handleLoginAndFetch = async () => {
+    setLoading(true);
+    setErrorMsg('');
+    try {
+      await pca.initialize();
+      const loginResponse = await pca.loginPopup({
+        scopes: ["User.Read", "Sites.ReadWrite.All"]
+      });
+
+      setIsLoggedIn(true);
+
+      // Inisialisasi Graph Client dengan Access Token
+      const graphClient = Client.init({
+        authProvider: (done) => {
+          done(null, loginResponse.accessToken);
+        }
+      });
+
+      // Fetch data dari Microsoft List
+      const res = await graphClient
+        .api(`/me/sites/root/lists/${LIST_ID}/items?expand=fields`)
+        .get();
+
+      const listData = res.value.map((item: any) => ({
+        id: item.id,
+        Title: item.fields.Title || '',
+        Amount: Number(item.fields.Amount) || 0,
+        Tipe: item.fields.Tipe || 'Income',
+        Category: item.fields.Category || '-',
+        Date: item.fields.Date ? new Date(item.fields.Date).toLocaleDateString('id-ID') : '-'
+      }));
+
+      setItems(listData);
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(err.message || 'Gagal login atau mengambil data.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatRupiah = (angka: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -27,14 +79,13 @@ export const App: React.FC = () => {
     }).format(angka);
   };
 
-  // Kalkulasi Total Pemasukan (Income), Pengeluaran (Expense), dan Saldo
   const totalPemasukan = items
     .filter(i => i.Tipe === 'Income')
-    .reduce((acc, i) => acc + (Number(i.Amount) || 0), 0);
+    .reduce((acc, i) => acc + i.Amount, 0);
 
   const totalPengeluaran = items
     .filter(i => i.Tipe === 'Expense')
-    .reduce((acc, i) => acc + (Number(i.Amount) || 0), 0);
+    .reduce((acc, i) => acc + i.Amount, 0);
 
   const saldoSisa = totalPemasukan - totalPengeluaran;
 
@@ -45,20 +96,26 @@ export const App: React.FC = () => {
         <p style={{ color: '#666' }}>Aplikasi Budgeting Personal dengan React & TSX</p>
       </header>
 
+      {errorMsg && (
+        <div style={{ padding: '12px', background: '#ffe6e6', color: '#c62828', borderRadius: '6px', marginBottom: '16px' }}>
+          {errorMsg}
+        </div>
+      )}
+
       {!isLoggedIn ? (
         <div style={{ background: '#fff', padding: '30px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', textAlign: 'center' }}>
           <h3>Selamat Datang!</h3>
           <p>Silakan login untuk menghubungkan data Microsoft Lists kamu.</p>
           <button 
-            onClick={() => setIsLoggedIn(true)}
+            onClick={handleLoginAndFetch}
+            disabled={loading}
             style={{ padding: '10px 20px', fontSize: '16px', background: '#0078d4', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
           >
-            Connect Microsoft Account
+            {loading ? 'Connecting...' : 'Connect Microsoft Account'}
           </button>
         </div>
       ) : (
         <div>
-          {/* Dashboard Ringkasan */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' }}>
             <div style={{ background: '#e6fffa', padding: '20px', borderRadius: '8px', borderLeft: '5px solid #00b0ff' }}>
               <span style={{ fontSize: '14px', color: '#555' }}>Total Pemasukan</span>
@@ -76,11 +133,10 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          {/* Daftar Transaksi */}
           <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
             <h3>Riwayat Keuangan</h3>
             {items.length === 0 ? (
-              <p style={{ color: '#888' }}>Belum ada data transaksi tersinkron.</p>
+              <p style={{ color: '#888' }}>Belum ada data transaksi atau sedang memuat...</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '12px' }}>
                 <thead>
