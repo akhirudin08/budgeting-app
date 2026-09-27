@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser';
+import { PublicClientApplication } from '@azure/msal-browser';
 import { Client } from '@microsoft/microsoft-graph-client';
 
-// Konfigurasi MSAL dari Azure Portal
 const msalConfig = {
   auth: {
     clientId: "3ffce125-2890-4390-813c-b6c4b3688fca",
@@ -36,36 +35,43 @@ export const App: React.FC = () => {
     try {
       await pca.initialize();
       const loginResponse = await pca.loginPopup({
-        scopes: ["User.Read", "Sites.ReadWrite.All"]
+        scopes: ["User.Read", "Sites.ReadWrite.All", "Notes.Read"]
       });
 
       setIsLoggedIn(true);
 
-      // Inisialisasi Graph Client dengan Access Token
       const graphClient = Client.init({
         authProvider: (done) => {
           done(null, loginResponse.accessToken);
         }
       });
 
-      // Fetch data dari Microsoft List
-      const res = await graphClient
-        .api(`/me/sites/root/lists/${LIST_ID}/items?expand=fields`)
-        .get();
+      let res;
+      try {
+        // Coba endpoint standar sites root
+        res = await graphClient
+          .api(`/me/sites/root/lists/${LIST_ID}/items?expand=fields`)
+          .get();
+      } catch (e) {
+        // Fallback untuk personal Microsoft List
+        res = await graphClient
+          .api(`/sites/root/lists/${LIST_ID}/items?expand=fields`)
+          .get();
+      }
 
-      const listData = res.value.map((item: any) => ({
+      const listData = (res.value || []).map((item: any) => ({
         id: item.id,
-        Title: item.fields.Title || '',
-        Amount: Number(item.fields.Amount) || 0,
-        Tipe: item.fields.Tipe || 'Income',
-        Category: item.fields.Category || '-',
-        Date: item.fields.Date ? new Date(item.fields.Date).toLocaleDateString('id-ID') : '-'
+        Title: item.fields?.Title || 'Tanpa Judul',
+        Amount: Number(item.fields?.Amount) || 0,
+        Tipe: (item.fields?.Tipe === 'Expense' || item.fields?.Tipe === 'Pengeluaran') ? 'Expense' : 'Income',
+        Category: item.fields?.Category || '-',
+        Date: item.fields?.Date ? new Date(item.fields.Date).toLocaleDateString('id-ID') : '-'
       }));
 
       setItems(listData);
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || 'Gagal login atau mengambil data.');
+      setErrorMsg(err?.message || err?.body?.error?.message || JSON.stringify(err));
     } finally {
       setLoading(false);
     }
@@ -97,8 +103,8 @@ export const App: React.FC = () => {
       </header>
 
       {errorMsg && (
-        <div style={{ padding: '12px', background: '#ffe6e6', color: '#c62828', borderRadius: '6px', marginBottom: '16px' }}>
-          {errorMsg}
+        <div style={{ padding: '12px', background: '#ffe6e6', color: '#c62828', borderRadius: '6px', marginBottom: '16px', wordBreak: 'break-word' }}>
+          <strong>Error Details:</strong> {errorMsg}
         </div>
       )}
 
