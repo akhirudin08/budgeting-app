@@ -6,7 +6,7 @@ import { Client } from '@microsoft/microsoft-graph-client';
 const msalConfig = {
   auth: {
     clientId: "3ffce125-2890-4390-813c-b6c4b3688fca",
-    authority: "https://login.microsoftonline.com/common",
+    authority: "https://login.microsoftonline.com/consumers",
     redirectUri: "https://budgeting-app-sand.vercel.app"
   }
 };
